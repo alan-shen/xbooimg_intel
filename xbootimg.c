@@ -1,82 +1,4 @@
-/****************************************************************************************
-[BOOT|RECOVERY|DROIDBOOT].UNSIGNED Structure    
-[DV | PV] STITCH                        
-+==============+=============+============+=============+==================+========+
-|        START |         END |       SIZE |  Total Size |             FLAG |        |
-+==============+=============+============+=============+==================+========+
-|  0x0000 0000 |             |            |             |          CMDLINE |  ZONE1 |
-|              | 0x0000 03FF | 1024 Bytes |             |   + Zero Padding |        |
-+--------------+-------------+------------+             |------------------+--------+
-|  0x0000 0400 | 0x0000 0403 |    4 Bytes |             |      Kernel Size |        |
-|  0x0000 0404 | 0x0000 0407 |    4 Bytes |   4 K Bytes |     Ramdisk Size |        |
-|  0x0000 0408 | 0x0000 040B |    4 Bytes |             |               $5 |        |
-|  0x0000 040C | 0x0000 040F |    4 Bytes |             |               $6 |  ZONE2 |
-+--------------+-------------+------------+             |------------------+        |
-|  0x0000 0410 |             |            |             |                  |        |
-|              | 0x0000 0FFF | 3056 Bytes |             |   + Zero Padding |        |
-+==============+=============+============+=============+==================+========+
-|  0x0000 1000 |             |                          |         BOOTSTUB |  ZONE3 |
-|              | 0x0000 1FFF |         4 K Bytes        |   + Zero Padding |        |
-+==============+=============+==========================+==================+========+
-|  0x0000 2000 |             |                          |           KERNEL |  ZONE4 |
-|              | 0xXXXX XXXX |        XXXX Bytes        |        + RAMDISK |        |
-+==============+=============+==========================+==================+========+
-
-****************************************************************************************
-
-SIGNED_[BOOT|RECOVERY|DROIDBOOT].[BIN|IMG] Structure??   
-[PV] ISU                        
-+==============+=============+============+=============+==================+
-|        START |         END |       SIZE |  Total Size |             FLAG |
-+==============+=============+============+=============+==================+
-|  0x0000 0000 |             |                          |                  |
-|              | 0x0000 01E0 |         480 Bytes        |       ISU HEADER |
-+==============+=============+==========================+==================+
-|              |             |                          |                  |
-|              |             |                          |     xxx.UNSIGNED |
-|              |             |                          |               +  |
-|              |             |                          |   "0xFF" PADDING |
-|              |             |                          |                  |
-+==============+=============+==========================+==================+
-
-                     
-[BOOT|RECOVERY|DROIDBOOT].[BIN|IMG] Structure??  
-[PV] ISU + XFSTK-STITCHER                        
-+==============+=============+============+=============+==================+
-|        START |         END |       SIZE |  Total Size |             FLAG |
-+==============+=============+============+=============+==================+
-|  0x0000 0000 |             |                          |                  |
-|              | 0x0000 01FF |         512 Bytes        |XFSTK HEADER(55AA)|
-+==============+=============+==========================+==================+
-|              |             |                          |                  |
-|              |             |                          |       SIGNED_xxx |
-|              |             |                          |               +  |
-|              |             |                          |   "0xFF" PADDING |
-|              |             |                          |                  |
-+==============+=============+==========================+==================+
-
-****************************************************************************************
-
-SIGNED_[BOOT|RECOVERY|DROIDBOOT].[BIN|IMG] Structure??   
-[DV] XFSTK-STITCHER                        
-+==============+=============+============+=============+==================+
-|        START |         END |       SIZE |  Total Size |             FLAG |
-+==============+=============+============+=============+==================+
-|  0x0000 0000 |             |                          |                  |
-|              | 0x0000 01FF |         512 Bytes        |XFSTK HEADER(55AA)|
-+==============+=============+==========================+==================+
-|              |             |                          |                  |
-|              |             |                          |     xxx.UNSIGNED |
-|              |             |                          |                + |
-|              |             |                          |   "0xFF" PADDING |
-|              |             |                          |                  |
-+==============+=============+==========================+==================+
-****************************************************************************************/
-                 
-#define DESCRIPTION "XBOOTIMG - Unpack Intel Soc Images(xxx.unsigned and PV/DV xxx.img)"      
-#define VERSION     "V_0_1"
-#define AUTHOR      "shenpengru@gmail.com"
-
+/* Header Files */
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -84,11 +6,21 @@ SIGNED_[BOOT|RECOVERY|DROIDBOOT].[BIN|IMG] Structure??
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <getopt.h>
 
+/*************************************** Version Info ************************************* */ 
+#define DESCRIPTION "xbootimg - Unpack Intel Soc Images(xxx.unsigned and PV/DV xxx.img)"      
+#define VERSION     "alpha 0.2.0"
+#define AUTHOR      "shenpengru@gmail.com"
+extern char DATE[];
+/*************************************** Version Info **************************************/                 
+
+/* ZONE Size */
 #define ZONE1_SIZE_CMDLINE      (1024)
 #define ZONE2_SIZE_PAR          (1024*3)
 #define ZONE3_SIZE_BOOTSTUB     (1024*4)
 
+/* Positions */
 #define SIZE_OF_ZONE2_PAR       (4)
 #define POSITION_KERNEL_SIZE    (0x00000400)
 #define POSITION_RAMDISK_SIZE   (0x00000404)
@@ -99,12 +31,24 @@ SIGNED_[BOOT|RECOVERY|DROIDBOOT].[BIN|IMG] Structure??
 #define POSITION_BOOTSTUB       (0x00001000)
 #define POSITION_KERNELRAMDISK  (0x00002000)
 
+/* Output fils' name */
 #define FILE_CMDLINE            "cmdline"
 #define FILE_BOOTSTUB           "bootstub"
 #define FILE_KERNEL             "kernel"
 #define FILE_RAMDISK            "ramdisk.img"
 #define FILE_PAR5               "par5"
 #define FILE_PAR6               "par6"
+
+/* Length of header */
+#define OFFSET_ISU_HEADER	(480)
+#define OFFSET_XFSTK_HEADER	(512)
+
+enum ETYPE{
+	ENUM_UNSIGNED_IMAGE=0,
+	ENUM_SIGNEDONLY_IMAGE=1,	// isu
+	ENUM_DV_IMAGE=2,		// xfstk
+	ENUM_PV_IMAGE=3,		// isu+xfstk
+};
 
 #define DEBUG (0)
 #if DEBUG
@@ -113,18 +57,44 @@ SIGNED_[BOOT|RECOVERY|DROIDBOOT].[BIN|IMG] Structure??
 #define INFO //
 #endif
 
-extern char DATE[];
-
 void help(void)
 {
-	printf("\n\tVersion    : %s\n", VERSION );
-	printf("\tDescrip    : %s\n", DESCRIPTION);
-	printf("\tAuthor     : %s\n", AUTHOR );
-	printf("\tBuild Time : %s\n", DATE);
+	printf("\n\t========== XBOOTIMAGE INTEL SOC ==========\n\n");
+	printf("\tVersion     : %s\n", VERSION );
+	printf("\tDescription : %s\n", DESCRIPTION);
+	printf("\tAuthor      : %s\n", AUTHOR );
+	printf("\tBuild Time  : %s\n", DATE);
 	printf("\n\tUsage:\n" );
-	printf("\t\t[unsigned image] xbootimg image_file_name\n" );
-	printf("\t\t[DV][boot image] xbootimg image_file_name -d\n" );
-	printf("\t\t[PV][boot image] xbootimg image_file_name -p\n\n" );
+	printf("\t\txbootimg --image image_file_name [--type [pv|dv|signed]]\n");
+	printf("\n\tExample:\n" );
+	printf("\t\txbootimg --image boot.unsigned\n" );
+	printf("\t\txbootimg --image signed_boot.img --type signed\n" );
+	printf("\t\txbootimg --image boot.bin --type pv\n" );
+	printf("\t\txbootimg --image boot.bin --type dv\n\n" );
+}
+
+int check_xfstk_header(char* image_name)
+{
+	FILE* image_fd;
+	unsigned int flag;
+
+	image_fd = fopen( image_name, "r" );
+	if( image_fd == NULL ){
+		printf("%s: open image %s fail!\n", __func__, image_name);
+	}
+
+	fseek( image_fd, 512-2, SEEK_SET );
+	fread( &flag, 2, 1, image_fd );
+	INFO("FLAG: %x %x\n", (flag)&0xFF, (flag>>8)&0xFF );
+	if ( (flag&0xFF)==0x55 && ((flag>>8)&0xFF)==0xAA ){
+		fclose( image_fd );
+		return 0;
+	}
+	else{
+		printf("This is not a xfstk stitched image. Please check your image's type.\n");
+		fclose( image_fd );
+		return -1;
+	}
 }
 
 int main( int argc, char** argv )
@@ -134,36 +104,84 @@ int main( int argc, char** argv )
 	int i;
 	unsigned int  buffer, buf[4], buff[4];
 	unsigned int size_kernel, size_ramdisk;
+	char image[50];
+	enum ETYPE type;
 
 	unsigned int offset = 0;
 
+	int opt;
+	int option_index = 0;
+	char *optstring = ":h:";
+	static struct option long_options[] = {  
+		{"image", required_argument, NULL, 'i'},  
+		{ "type", required_argument, NULL, 't'},
+		{ "help", no_argument,       NULL, 'h'},
+		{0, 0, 0, 0}  
+	};
+
 	if ( argc < 2 ){
+		printf("\tERROR: Too few argruments!\n");
 		help();
 		exit( 1 );
 	}
 
-	if( argc == 3 ){
-		if( strcmp(argv[2], "-d") == 0 ){
-			offset = 512;
-		}
-		else if ( strcmp(argv[2], "-p") == 0 ){
-			offset = 512+480;
-		}
-		else{
-			printf("ERROR: Wrong input parameter!\n");
-			help();
-			exit(1);	
+	while( (opt = getopt_long(argc, argv, optstring, long_options, &option_index)) != -1 ){
+		switch( opt ){
+			case 'i':
+				INFO("Input image is %s\n", optarg);
+				strcpy(image, optarg);
+				break;
+			case 't':
+				if ( strcmp( optarg, "signed" )==0 )
+					type = ENUM_SIGNEDONLY_IMAGE;
+				else if ( strcmp( optarg, "pv" )==0 )
+					type = ENUM_PV_IMAGE;
+				else if ( strcmp( optarg, "dv" )==0 )
+					type = ENUM_DV_IMAGE;
+				else {
+					printf("\tERROR: Unknown type!\n");
+					exit(1);
+				}
+				break;
+			case 'h':
+				help();
+				exit(0);
+			case '?':
+			default:
+				printf("\tERROR: Unknown options!\n");
+				exit(1);
+				break;
 		}
 	}
-	else{
-		offset = 0;
+
+	offset = 0;
+	switch( type ){
+		case ENUM_SIGNEDONLY_IMAGE:
+			offset = OFFSET_ISU_HEADER;
+			printf("");
+			break;
+		case ENUM_DV_IMAGE:
+			offset = OFFSET_XFSTK_HEADER;
+			if( check_xfstk_header( image ) != 0 ) exit(1);
+			break;
+		case ENUM_PV_IMAGE:
+			offset = OFFSET_ISU_HEADER + OFFSET_XFSTK_HEADER;
+			if( check_xfstk_header( image ) != 0 ) exit(1);
+			break;
+		default:
+			type = ENUM_UNSIGNED_IMAGE;
+			offset = 0;
+			break;
 	}
 
-	INFO("offset = %d\n", offset);
+	if ( offset == 0 ){
+		type = ENUM_UNSIGNED_IMAGE;
+	}
+	printf("\nIMAGE TYPE: %d(0:unsigned/1:signed/2:DV/3:PV), HEADER LENGTH : %d\n", type, offset);
 
-	img_fd = fopen( argv[1], "r" );
+	img_fd = fopen( image, "r" );
 	if ( img_fd == NULL ){
-		printf( "\tOpen image file [%s] failed\n", argv[1] );
+		printf( "\tOpen image file [%s] failed\n", image );
 		exit( 1 );
 	}
 
@@ -192,7 +210,7 @@ int main( int argc, char** argv )
 	fclose(stub_fd);
 
 	/*
-	 * Get kernel size
+	 * Get kernel and ramdisk size
 	 */
 	INFO("\n===== READ KERNEL/RAMDISK SIZE =====\n");
 	fseek( img_fd, POSITION_KERNEL_SIZE + offset, SEEK_SET );
@@ -200,20 +218,15 @@ int main( int argc, char** argv )
 		fread( &buf[i], 1, 1, img_fd );
 	}
 	size_kernel = ((buf[3]&0xFF)*256*256*256)+((buf[2]&0xFF)*256*256)+((buf[1]&0xFF)*256)+(buf[0]&0xFF);
-	printf("Kernel  Size %d KBytes\n", size_kernel/1024);
-	
-	/*
-	 * Get ramdisk size
-	 */
 	fseek( img_fd, POSITION_RAMDISK_SIZE + offset, SEEK_SET );
 	for( i=0; i<SIZE_OF_ZONE2_PAR; i++ ){
 		fread( &buf[i], 1, 1, img_fd );
 	}
 	size_ramdisk = ((buf[3]&0xFF)*256*256*256)+((buf[2]&0xFF)*256*256)+((buf[1]&0xFF)*256)+(buf[0]&0xFF);
-	printf("Ramdisk Size %d KBytes\n", size_ramdisk/1024);
+	printf("\nKernel Size %d KBytes, Ramdisk Size %d KBytes\n\n", size_kernel/1024, size_ramdisk/1024);
 
 	/*
-	 * Get kernel
+	 * Get kernel image
 	 */
 	INFO("\n===== READ KERNEL =====\n");
 	fseek( img_fd, POSITION_KERNELRAMDISK + offset, SEEK_SET );
@@ -225,7 +238,7 @@ int main( int argc, char** argv )
 	fclose( kernel_fd );
 
 	/*
-	 * Get ramdisk
+	 * Get ramdisk image
 	 */
 	INFO("\n===== READ RAMDISK =====\n");
 	fseek( img_fd, POSITION_KERNELRAMDISK+size_kernel + offset, SEEK_SET );
