@@ -57,20 +57,28 @@ enum ETYPE{
 #define INFO //
 #endif
 
-void help(void)
+#define SHOW_VERSION	(1)
+#define HIDE_VERSION	(0)
+void help(int version)
 {
-	printf("\n\t========== XBOOTIMAGE INTEL SOC ==========\n\n");
-	printf("\tVersion     : %s\n", VERSION );
-	printf("\tDescription : %s\n", DESCRIPTION);
-	printf("\tAuthor      : %s\n", AUTHOR );
-	printf("\tBuild Time  : %s\n", DATE);
-	printf("\n\tUsage:\n" );
-	printf("\t\txbootimg --image image_file_name [--type [pv|dv|signed]]\n");
-	printf("\n\tExample:\n" );
-	printf("\t\txbootimg --image boot.unsigned\n" );
-	printf("\t\txbootimg --image signed_boot.img --type signed\n" );
-	printf("\t\txbootimg --image boot.bin --type pv\n" );
-	printf("\t\txbootimg --image boot.bin --type dv\n\n" );
+	if(version){
+		printf("\n\t========== XBOOTIMAGE INTEL SOC ==========\n\n");
+		printf("\tDescription : %s\n", DESCRIPTION);
+		printf("\tVersion     : %s\n", VERSION );
+		printf("\tAuthor      : %s\n", AUTHOR );
+		printf("\tBuild Time  : %s\n", DATE);
+		printf("\n\t==========================================\n\n");
+	}
+	else{
+		printf("\n\tUsage:\n" );
+		printf("\t\txbootimg --image <image_name> [--type <pv|dv|signed>]\n");
+		printf("\t\txbootimg --version\n");
+		printf("\n\tExample:\n" );
+		printf("\t\txbootimg --image boot.unsigned\n" );
+		printf("\t\txbootimg --image signed_boot.img --type signed\n" );
+		printf("\t\txbootimg --image boot.bin --type pv\n" );
+		printf("\t\txbootimg --image boot.bin --type dv\n\n" );
+	}
 }
 
 int check_xfstk_header(char* image_name)
@@ -113,15 +121,16 @@ int main( int argc, char** argv )
 	int option_index = 0;
 	char *optstring = ":h:";
 	static struct option long_options[] = {  
-		{"image", required_argument, NULL, 'i'},  
-		{ "type", required_argument, NULL, 't'},
-		{ "help", no_argument,       NULL, 'h'},
+		{  "image", required_argument, NULL, 'i'},  
+		{   "type", required_argument, NULL, 't'},
+		{   "help", no_argument,       NULL, 'h'},
+		{"version", no_argument,       NULL, 'v'},
 		{0, 0, 0, 0}  
 	};
 
 	if ( argc < 2 ){
-		printf("\tERROR: Too few argruments!\n");
-		help();
+		printf("\n\tERROR: Too few argruments!\n");
+		help(HIDE_VERSION);
 		exit( 1 );
 	}
 
@@ -139,16 +148,20 @@ int main( int argc, char** argv )
 				else if ( strcmp( optarg, "dv" )==0 )
 					type = ENUM_DV_IMAGE;
 				else {
-					printf("\tERROR: Unknown type!\n");
+					printf("\n\tERROR: Unknown type!\n");
 					exit(1);
 				}
 				break;
 			case 'h':
-				help();
+				help(HIDE_VERSION);
+				exit(0);
+				break;
+			case 'v':
+				help(SHOW_VERSION);
 				exit(0);
 			case '?':
 			default:
-				printf("\tERROR: Unknown options!\n");
+				printf("\n\tERROR: Unknown options!\n");
 				exit(1);
 				break;
 		}
